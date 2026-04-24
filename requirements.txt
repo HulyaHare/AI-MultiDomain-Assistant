@@ -1,0 +1,21 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+httpx
+pandas
+numpy
+scikit-learn
+joblib
+python-multipart
+python-dotenv
+aiofiles
+
+# LLM & Orchestration (Groq)
+langchain
+langchain-groq
+
+# Testing
+pytest
+pytest-asyncio
+anyio

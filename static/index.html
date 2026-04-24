@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AI Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            dark: { 900: '#0B1120', 800: '#111827', 700: '#1E293B', 600: '#334155' },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+
+    .msg-in { animation: msgIn 0.3s ease-out; }
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .typing-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #94a3b8;
+      animation: bounce 1.4s infinite ease-in-out;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.16s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.32s; }
+    @keyframes bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30%           { transform: translateY(-6px); opacity: 1; }
+    }
+
+    .card-scroll { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; scroll-snap-type: x mandatory; }
+    .card-scroll::-webkit-scrollbar { height: 3px; }
+    .card-scroll > div { scroll-snap-align: start; flex-shrink: 0; }
+  </style>
+</head>
+<body class="bg-dark-900 text-gray-100 flex flex-col h-full">
+
+  <!-- ═══ Header ═══ -->
+  <header class="flex-shrink-0 bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-3 shadow-lg z-10">
+    <div class="max-w-2xl mx-auto flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl">🤖</div>
+      <div>
+        <h1 class="text-lg font-bold leading-tight">AI Assistant</h1>
+        <p class="text-xs text-indigo-200">Healthcare · Movies · Shopping</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══ Chat Area ═══ -->
+  <main id="chatArea" class="flex-1 overflow-y-auto px-3 py-4 space-y-4 max-w-2xl mx-auto w-full">
+    <!-- welcome -->
+    <div class="msg-in flex gap-2 items-start">
+      <div class="w-8 h-8 rounded-full bg-indigo-600/30 flex items-center justify-center text-sm flex-shrink-0 mt-1">🤖</div>
+      <div class="bg-dark-700 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%] text-sm leading-relaxed text-gray-200">
+        Hello! I'm your AI assistant. I can help you with:<br><br>
+        🏥 <strong>Health</strong> — Describe your symptoms<br>
+        🎬 <strong>Movies</strong> — Ask for recommendations<br>
+        🛒 <strong>Shopping</strong> — Search for products<br><br>
+        How can I help you today?
+      </div>
+    </div>
+  </main>
+
+  <!-- ═══ Input Bar ═══ -->
+  <footer class="flex-shrink-0 bg-dark-800 border-t border-dark-600 px-3 py-3 z-10">
+    <form id="chatForm" class="max-w-2xl mx-auto flex gap-2">
+      <input
+        id="msgInput"
+        type="text"
+        placeholder="Type a message..."
+        autocomplete="off"
+        class="flex-1 bg-dark-700 border border-dark-600 rounded-full px-4 py-2.5 text-sm text-gray-100 placeholder-gray-500 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"
+      />
+      <button
+        type="submit"
+        class="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center transition flex-shrink-0"
+      >
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+      </button>
+    </form>
+  </footer>
+
+  <script>
+    const chatArea  = document.getElementById('chatArea');
+    const chatForm  = document.getElementById('chatForm');
+    const msgInput  = document.getElementById('msgInput');
+    let sessionId   = null;
+
+    const scroll = () => setTimeout(() => chatArea.scrollTo({ top: chatArea.scrollHeight, behavior: 'smooth' }), 60);
+
+    /* ── Add a message bubble ── */
+    function addMessage(role, html) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'msg-in flex gap-2 items-start ' + (role === 'user' ? 'justify-end' : '');
+
+      if (role === 'user') {
+        wrapper.innerHTML = `<div class="bg-indigo-600 rounded-2xl rounded-tr-sm px-4 py-3 max-w-[85%] text-sm leading-relaxed">${html}</div>`;
+      } else {
+        wrapper.innerHTML = `
+          <div class="w-8 h-8 rounded-full bg-indigo-600/30 flex items-center justify-center text-sm flex-shrink-0 mt-1">🤖</div>
+          <div class="bg-dark-700 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%] text-sm leading-relaxed text-gray-200">${html}</div>`;
+      }
+      chatArea.appendChild(wrapper);
+      scroll();
+    }
+
+    /* ── Typing indicator ── */
+    function showTyping() {
+      const el = document.createElement('div');
+      el.id = 'typing';
+      el.className = 'msg-in flex gap-2 items-start';
+      el.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-indigo-600/30 flex items-center justify-center text-sm flex-shrink-0 mt-1">🤖</div>
+        <div class="bg-dark-700 rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1.5 items-center">
+          <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+        </div>`;
+      chatArea.appendChild(el);
+      scroll();
+    }
+    function hideTyping() { document.getElementById('typing')?.remove(); }
+
+    /* ── Domain badge ── */
+    function badge(domain) {
+      const map = {
+        healthcare: ['🏥 Health',  'bg-teal-600/20 text-teal-400 border-teal-500/30'],
+        movie:      ['🎬 Movie',   'bg-amber-600/20 text-amber-400 border-amber-500/30'],
+        ecommerce:  ['🛒 Shop',    'bg-pink-600/20 text-pink-400 border-pink-500/30'],
+        general:    ['💬 Chat',    'bg-gray-600/20 text-gray-400 border-gray-500/30'],
+      };
+      const [label, cls] = map[domain] || map.general;
+      return `<span class="inline-block text-xs font-medium px-2 py-0.5 rounded-full border ${cls} mb-2">${label}</span>`;
+    }
+
+    /* ── Render cards by domain ── */
+    function renderCards(domain, data) {
+      if (!data) return '';
+      if (domain === 'healthcare') return healthCards(data);
+      if (domain === 'movie')      return movieCards(data);
+      if (domain === 'ecommerce')  return productCards(data);
+      return '';
+    }
+
+    function healthCards(d) {
+      if (!d.predicted_disease) return '';
+      const syms = (d.common_symptoms || []).slice(0, 8).map(s =>
+        `<span class="inline-block bg-teal-600/20 text-teal-300 text-xs px-2 py-0.5 rounded-full border border-teal-500/20">${s}</span>`
+      ).join(' ');
+      return `
+        <div class="mt-3 bg-dark-800 border border-teal-500/20 rounded-xl p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="font-semibold text-teal-400">${d.predicted_disease}</span>
+            <span class="text-xs text-gray-500">${d.total_cases_in_data || 0} cases in DB</span>
+          </div>
+          ${d.confidence != null ? `
+          <div class="w-full bg-dark-600 rounded-full h-2">
+            <div class="h-2 rounded-full bg-gradient-to-r from-teal-500 to-emerald-400" style="width:${Math.min(Math.max(d.confidence * 10, 10), 100)}%"></div>
+          </div>` : ''}
+          ${syms ? `<div class="flex flex-wrap gap-1.5">${syms}</div>` : ''}
+          <p class="text-xs text-gray-500 italic">⚕️ This is an AI prediction — please consult a doctor.</p>
+        </div>`;
+    }
+
+    function movieCards(d) {
+      const movies = d.movies || [];
+      if (!movies.length) return '';
+      const cards = movies.map(m => {
+        const year = m.release_date ? m.release_date.substring(0, 4) : '';
+        const genres = m.genres ? m.genres.split(' ').slice(0, 3).join(' · ') : '';
+        return `
+          <div class="w-48 bg-dark-800 border border-amber-500/15 rounded-xl p-3 space-y-2">
+            <div class="font-semibold text-amber-300 text-sm leading-tight truncate" title="${m.title}">${m.title}</div>
+            <div class="flex items-center gap-2 text-xs text-gray-400">
+              <span class="text-amber-400">★ ${m.vote_average.toFixed(1)}</span>
+              ${year ? `<span>${year}</span>` : ''}
+            </div>
+            <p class="text-xs text-gray-500 leading-snug line-clamp-3">${genres}</p>
+          </div>`;
+      }).join('');
+      return `<div class="card-scroll mt-3">${cards}</div>`;
+    }
+
+    function productCards(d) {
+      const products = d.products || [];
+      if (!products.length) return '';
+      const fmt = (v) => v != null ? '₹' + Number(v).toLocaleString('en-IN') : '';
+      const cards = products.map(p => {
+        const priceHtml = p.discounted_price
+          ? `<span class="text-pink-400 font-bold">${fmt(p.discounted_price)}</span>` +
+            (p.retail_price && p.retail_price !== p.discounted_price
+              ? ` <span class="line-through text-gray-600 text-xs">${fmt(p.retail_price)}</span>` : '')
+          : (p.retail_price ? `<span class="text-pink-400 font-bold">${fmt(p.retail_price)}</span>` : '<span class="text-gray-600 text-xs">Price N/A</span>');
+        const rating = p.rating != null ? `<span class="text-amber-400 text-xs">★ ${p.rating}</span>` : '';
+        return `
+          <div class="bg-dark-800 border border-pink-500/15 rounded-xl p-3 space-y-1.5">
+            <div class="font-semibold text-pink-300 text-sm leading-tight">${p.name}</div>
+            <div class="flex items-center gap-2 text-sm">${priceHtml} ${rating}</div>
+            ${p.brand ? `<span class="text-xs text-gray-500">${p.brand}</span>` : ''}
+          </div>`;
+      }).join('');
+      return `<div class="mt-3 space-y-2">${cards}</div>`;
+    }
+
+    /* ── Send message ── */
+    chatForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = msgInput.value.trim();
+      if (!text) return;
+
+      addMessage('user', text);
+      msgInput.value = '';
+      msgInput.disabled = true;
+      showTyping();
+
+      try {
+        const res = await fetch('/api/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text, session_id: sessionId }),
+        });
+        const data = await res.json();
+        sessionId = data.session_id;
+        hideTyping();
+
+        const html = badge(data.domain) + '<br>' + data.message + renderCards(data.domain, data.data);
+        addMessage('bot', html);
+      } catch (err) {
+        hideTyping();
+        addMessage('bot', badge('general') + '<br>Sorry, something went wrong. Please try again.');
+        console.error(err);
+      } finally {
+        msgInput.disabled = false;
+        msgInput.focus();
+      }
+    });
+
+    msgInput.focus();
+  </script>
+</body>
+</html>
